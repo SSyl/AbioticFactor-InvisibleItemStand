@@ -9,8 +9,9 @@ local function DebugLog(message)
     end
 end
 
-local ITEM_Z_HEIGHT = 0
-local ORIGINAL_Z_HEIGHT = 11.134993
+local HIDDEN_ITEM_Z = 0  -- Z position when stand is invisible (item at ground level)
+local VISIBLE_ITEM_Z_ITEMSTAND = 11.134993  -- Z position for visible item stand
+local VISIBLE_ITEM_Z_WALLMOUNT = 5.5  -- Z position for visible wall mounted item stand
 
 -- Color mapping: string name to enum value
 local COLORS = {
@@ -25,11 +26,17 @@ for name, value in pairs(COLORS) do
     COLORS[value] = name
 end
 
--- Get target color from config
-local TARGET_COLOR = COLORS[Config.InvisibleColor] or COLORS.Brown
-if not TARGET_COLOR then
-    print("[Invisible Item Stand] ERROR: Invalid InvisibleColor in config. Using Brown as default.\n")
-    TARGET_COLOR = COLORS.Brown
+local TARGET_COLOR_ITEMSTAND = COLORS[Config.InvisibleColorItemStand] or COLORS.Brown
+local TARGET_COLOR_WALLMOUNT = COLORS[Config.InvisibleColorWallMount] or COLORS.Brown
+
+if not TARGET_COLOR_ITEMSTAND then
+    print("[Invisible Item Stand] ERROR: Invalid InvisibleColorItemStand in config. Using Brown as default.\n")
+    TARGET_COLOR_ITEMSTAND = COLORS.Brown
+end
+
+if not TARGET_COLOR_WALLMOUNT then
+    print("[Invisible Item Stand] ERROR: Invalid InvisibleColorWallMount in config. Using Brown as default.\n")
+    TARGET_COLOR_WALLMOUNT = COLORS.Brown
 end
 
 local function GetColorName(colorValue)
@@ -44,6 +51,12 @@ local function ProcessStand(itemStand)
     end)
 
     if not ok then return end
+
+    -- Determine stand type for correct Z positioning and target color
+    local className = itemStand:GetClass():GetFName():ToString()
+    local isWallMount = (className == "Deployed_ItemStand_WallMount_C")
+    local visibleZ = isWallMount and VISIBLE_ITEM_Z_WALLMOUNT or VISIBLE_ITEM_Z_ITEMSTAND
+    local targetColor = isWallMount and TARGET_COLOR_WALLMOUNT or TARGET_COLOR_ITEMSTAND
 
     ExecuteInGameThread(function()
         if not itemStand or not itemStand:IsValid() then return end
@@ -60,14 +73,14 @@ local function ProcessStand(itemStand)
         if not (ok2 and itemRoot and itemRoot:IsValid()) then return end
 
         local shouldHide
-        local targetZ
+        local desiredZ
 
-        if paintedColor == TARGET_COLOR then
+        if paintedColor == targetColor then
             shouldHide = true
-            targetZ = ITEM_Z_HEIGHT
+            desiredZ = HIDDEN_ITEM_Z
         else
             shouldHide = false
-            targetZ = ORIGINAL_Z_HEIGHT
+            desiredZ = visibleZ
         end
 
         -- Check if already in desired state to skip redundant work
@@ -94,7 +107,7 @@ local function ProcessStand(itemStand)
 
         pcall(function()
             local loc = itemRoot.RelativeLocation
-            itemRoot:K2_SetRelativeLocation({X = loc.X, Y = loc.Y, Z = targetZ}, false, {}, false)
+            itemRoot:K2_SetRelativeLocation({X = loc.X, Y = loc.Y, Z = desiredZ}, false, {}, false)
         end)
     end)
 end
@@ -111,9 +124,11 @@ ExecuteWithDelay(2500, function()
             local paintedObject = Context:get()
             if not paintedObject or not paintedObject:IsValid() then return end
 
-            -- Filter: only process item stands, not all paintable objects
+            -- Filter: only process item stands (both regular and wall mounted), not all paintable objects
             local className = paintedObject:GetClass():GetFName():ToString()
-            if className ~= "Deployed_ItemStand_ParentBP_C" then return end
+            if className ~= "Deployed_ItemStand_ParentBP_C" and className ~= "Deployed_ItemStand_WallMount_C" then
+                return
+            end
 
             ProcessStand(paintedObject)
         end)
@@ -124,4 +139,4 @@ ExecuteWithDelay(2500, function()
     end
 end)
 
-print("[Invisible Item Stand] Mod loaded - Invisible color: " .. GetColorName(TARGET_COLOR) .. "\n")
+print("[Invisible Item Stand] Mod loaded - ItemStand: " .. GetColorName(TARGET_COLOR_ITEMSTAND) .. ", WallMount: " .. GetColorName(TARGET_COLOR_WALLMOUNT) .. "\n")
