@@ -1,12 +1,25 @@
-print("=== [Invisible Item Stand] MOD LOADING ===\n")
+print("=== [Invisible Item Stand] MOD LOADING ===\n")  -- Pre-config load message
 
 local Config = require("../config")
 local DEBUG = Config.Debug or false
 
-local function DebugLog(message)
-    if DEBUG then
-        print("[Invisible Item Stand] " .. tostring(message) .. "\n")
+local function Log(message, level)
+    level = level or "info"
+
+    -- Filter debug messages when DEBUG is disabled
+    if level == "debug" and not DEBUG then
+        return
     end
+
+    -- Add prefix for errors and warnings
+    local prefix = ""
+    if level == "error" then
+        prefix = "ERROR: "
+    elseif level == "warning" then
+        prefix = "WARNING: "
+    end
+
+    print("[Invisible Item Stand] " .. prefix .. tostring(message) .. "\n")
 end
 
 local HIDDEN_ITEM_Z = 0  -- Z position when stand is invisible (item at ground level)
@@ -15,32 +28,34 @@ local VISIBLE_ITEM_Z_WALLMOUNT = 5.5  -- Z position for visible wall mounted ite
 
 -- Color mapping: string name to enum value
 local COLORS = {
-    White = 0, Blue = 1, Red = 2, Green = 3,
-    Orange = 4, Purple = 5, Yellow = 6, Black = 7,
-    Cyan = 8, Lime = 9, Pink = 10, Brown = 11,
-    None = 12, Glitch = 13
+    white = 0, blue = 1, red = 2, green = 3,
+    orange = 4, purple = 5, yellow = 6, black = 7,
+    cyan = 8, lime = 9, pink = 10, brown = 11,
+    none = 12, unpainted = 12, glitch = 13,  -- "unpainted" is an alias for "none"
+    disabled = -1  -- Special value to disable invisibility for a stand type
 }
 
--- Add reverse mapping: enum value to string name
-for name, value in pairs(COLORS) do
-    COLORS[value] = name
+-- Normalize color name: trim whitespace and lowercase
+local function NormalizeColorName(name)
+    if not name then return nil end
+    name = name:match("^%s*(.-)%s*$")  -- Trim whitespace
+    return name:lower()  -- Lowercase
 end
 
-local TARGET_COLOR_ITEMSTAND = COLORS[Config.InvisibleColorItemStand] or COLORS.Brown
-local TARGET_COLOR_WALLMOUNT = COLORS[Config.InvisibleColorWallMount] or COLORS.Brown
+local configColorItemStand = NormalizeColorName(Config.InvisibleColorItemStand)
+local configColorWallMount = NormalizeColorName(Config.InvisibleColorWallMount)
+
+local TARGET_COLOR_ITEMSTAND = COLORS[configColorItemStand] or COLORS.brown
+local TARGET_COLOR_WALLMOUNT = COLORS[configColorWallMount] or COLORS.brown
 
 if not TARGET_COLOR_ITEMSTAND then
-    print("[Invisible Item Stand] ERROR: Invalid InvisibleColorItemStand in config. Using Brown as default.\n")
-    TARGET_COLOR_ITEMSTAND = COLORS.Brown
+    Log("Invalid InvisibleColorItemStand in config. Using Brown as default.", "error")
+    TARGET_COLOR_ITEMSTAND = COLORS.brown
 end
 
 if not TARGET_COLOR_WALLMOUNT then
-    print("[Invisible Item Stand] ERROR: Invalid InvisibleColorWallMount in config. Using Brown as default.\n")
-    TARGET_COLOR_WALLMOUNT = COLORS.Brown
-end
-
-local function GetColorName(colorValue)
-    return COLORS[colorValue] or "Unknown(" .. tostring(colorValue) .. ")"
+    Log("Invalid InvisibleColorWallMount in config. Using Brown as default.", "error")
+    TARGET_COLOR_WALLMOUNT = COLORS.brown
 end
 
 local function ProcessStand(itemStand)
@@ -57,6 +72,11 @@ local function ProcessStand(itemStand)
     local isWallMount = (className == "Deployed_ItemStand_WallMount_C")
     local visibleZ = isWallMount and VISIBLE_ITEM_Z_WALLMOUNT or VISIBLE_ITEM_Z_ITEMSTAND
     local targetColor = isWallMount and TARGET_COLOR_WALLMOUNT or TARGET_COLOR_ITEMSTAND
+
+    -- Skip processing if this stand type is disabled
+    if targetColor == COLORS.disabled then
+        return
+    end
 
     ExecuteInGameThread(function()
         if not itemStand or not itemStand:IsValid() then return end
@@ -96,9 +116,9 @@ local function ProcessStand(itemStand)
         end
 
         if shouldHide then
-            DebugLog("Hiding stand (color: " .. GetColorName(paintedColor) .. ")")
+            Log("Hiding stand (color: " .. paintedColor .. ")", "debug")
         else
-            DebugLog("Showing stand (color: " .. GetColorName(paintedColor) .. ")")
+            Log("Showing stand (color: " .. paintedColor .. ")", "debug")
         end
 
         pcall(function()
@@ -117,7 +137,7 @@ end
 -- Fires during world load (property initialization), new spawns, and live painting.
 -- We filter for item stands in the callback since the hook fires for all paintable objects.
 ExecuteWithDelay(2500, function()
-    DebugLog("Registering paint change hook...")
+    Log("Registering paint change hook...", "debug")
 
     local ok, err = pcall(function()
         RegisterHook("/Game/Blueprints/DeployedObjects/AbioticDeployed_ParentBP.AbioticDeployed_ParentBP_C:OnRep_PaintedColor", function(Context)
@@ -135,8 +155,8 @@ ExecuteWithDelay(2500, function()
     end)
 
     if not ok then
-        DebugLog("ERROR registering OnRep_PaintedColor: " .. tostring(err))
+        Log("Registering OnRep_PaintedColor: " .. tostring(err), "error")
     end
 end)
 
-print("[Invisible Item Stand] Mod loaded - ItemStand: " .. GetColorName(TARGET_COLOR_ITEMSTAND) .. ", WallMount: " .. GetColorName(TARGET_COLOR_WALLMOUNT) .. "\n")
+Log("Mod loaded - ItemStand color: " .. TARGET_COLOR_ITEMSTAND .. ", WallMount color: " .. TARGET_COLOR_WALLMOUNT)
