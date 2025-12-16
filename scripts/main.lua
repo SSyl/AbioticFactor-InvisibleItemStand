@@ -12,30 +12,28 @@ end
 local ITEM_Z_HEIGHT = 0
 local ORIGINAL_Z_HEIGHT = 11.134993
 
--- Map color names to enum values
-local COLOR_VALUES = {
+-- Color mapping: string name to enum value
+local COLORS = {
     White = 0, Blue = 1, Red = 2, Green = 3,
     Orange = 4, Purple = 5, Yellow = 6, Black = 7,
     Cyan = 8, Lime = 9, Pink = 10, Brown = 11,
     None = 12, Glitch = 13
 }
 
-local COLOR_NAMES = {
-    [0] = "White", [1] = "Blue", [2] = "Red", [3] = "Green",
-    [4] = "Orange", [5] = "Purple", [6] = "Yellow", [7] = "Black",
-    [8] = "Cyan", [9] = "Lime", [10] = "Pink", [11] = "Brown",
-    [12] = "None", [13] = "Glitch"
-}
+-- Add reverse mapping: enum value to string name
+for name, value in pairs(COLORS) do
+    COLORS[value] = name
+end
 
 -- Get target color from config
-local TARGET_COLOR = COLOR_VALUES[Config.InvisibleColor] or COLOR_VALUES.Brown
+local TARGET_COLOR = COLORS[Config.InvisibleColor] or COLORS.Brown
 if not TARGET_COLOR then
     print("[Invisible Item Stand] ERROR: Invalid InvisibleColor in config. Using Brown as default.\n")
-    TARGET_COLOR = COLOR_VALUES.Brown
+    TARGET_COLOR = COLORS.Brown
 end
 
 local function GetColorName(colorValue)
-    return COLOR_NAMES[colorValue] or "Unknown(" .. tostring(colorValue) .. ")"
+    return COLORS[colorValue] or "Unknown(" .. tostring(colorValue) .. ")"
 end
 
 local function ProcessStand(itemStand)
