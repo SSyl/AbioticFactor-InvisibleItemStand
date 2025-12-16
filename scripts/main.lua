@@ -158,5 +158,3 @@ ExecuteWithDelay(2500, function()
         Log("Registering OnRep_PaintedColor: " .. tostring(err), "error")
     end
 end)
-
-Log("Mod loaded - ItemStand color: " .. TARGET_COLOR_ITEMSTAND .. ", WallMount color: " .. TARGET_COLOR_WALLMOUNT)
