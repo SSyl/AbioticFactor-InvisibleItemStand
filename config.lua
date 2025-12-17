@@ -3,22 +3,24 @@
 -- Works with both Item Stands and wall-mounted item stands
 
 return {
-    -- Paint color that triggers invisibility for Item Stands
-    -- When painted this color, the stand will become invisible and the item will be lowered
+    -- Which paint color makes Item Stands invisible
+    -- When you paint the stand this color, it will disappear and lower the item to the ground
     --
-    -- Available colors (case-insensitive):
+    -- Choose from:
     --   white, blue, red, green, orange, purple, yellow, black,
     --   cyan, lime, pink, brown, unpainted, glitch
-    --   DISABLED - Item Stands will always be visible, regardless of paint color
     --
-    -- Note: Setting this to "unpainted" will make unpainted stands invisible.
-    --       You'll only see the stand after painting it with any color.
+    -- Special option:
+    --   DISABLED - stands will never turn invisible (keeps default behavior)
     --
-    -- Default: "brown" (closest to the item stand's natural wood color)
+    -- Note: If you choose "unpainted", then unpainted stands will be invisible.
+    --       The stand will only appear after you paint it.
+    --
+    -- Default: "brown"
     InvisibleColorItemStand = "brown",
 
-    -- Paint color that triggers invisibility for Wall-Mounted Item Stands
-    -- Set to "DISABLED" to keep wall-mounted stands always visible, regardless of paint color
+    -- Which paint color makes Wall-Mounted Item Stands invisible
+    -- Same options as above
     -- Default: "brown"
     InvisibleColorWallMount = "brown",
 

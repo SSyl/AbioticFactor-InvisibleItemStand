@@ -54,16 +54,20 @@ if not TARGET_COLOR_WALLMOUNT then
     TARGET_COLOR_WALLMOUNT = COLORS.brown
 end
 
-local function ProcessStand(itemStand, className)
+local function ProcessStand(itemStand, className, paintedColor)
     if not itemStand or not itemStand:IsValid() then return end
 
-    local ok, paintedColor = pcall(function()
-        return itemStand.PaintedColor
-    end)
-    if not ok then return end
-
-    -- Get className if not provided (for OnRep hook compatibility)
+    -- Get className if not provided
     className = className or itemStand:GetClass():GetFName():ToString()
+
+    -- Get paintedColor if not provided
+    if not paintedColor then
+        local ok, color = pcall(function()
+            return itemStand.PaintedColor
+        end)
+        if not ok then return end
+        paintedColor = color
+    end
 
     -- Determine stand type and target configuration
     local isWallMount = (className == "Deployed_ItemStand_WallMount_C")
@@ -105,37 +109,52 @@ end
 ExecuteWithDelay(2500, function()
     Log("Registering hooks...", "debug")
 
-    local ok, err = pcall(function()
-        -- Hook ReceiveBeginPlay on parent class to catch all deployed objects
-        -- Filter for item stands in the callback
-        -- Handles: world load (including unpainted stands) and new placements
+    -- Hook ReceiveBeginPlay on parent class to catch all deployed objects
+    -- Only process unpainted stands (OnRep handles painted stands)
+    -- Handles: world load unpainted stands and new unpainted placements
+    local ok1, err1 = pcall(function()
         RegisterHook("/Game/Blueprints/DeployedObjects/AbioticDeployed_ParentBP.AbioticDeployed_ParentBP_C:ReceiveBeginPlay", function(Context)
             local deployedObj = Context:get()
             if not deployedObj or not deployedObj:IsValid() then return end
 
             local objClass = deployedObj:GetClass():GetFName():ToString()
             if objClass == "Deployed_ItemStand_ParentBP_C" or objClass == "Deployed_ItemStand_WallMount_C" then
-                ProcessStand(deployedObj, objClass)
+                -- Only process unpainted stands (color 12) - OnRep will handle painted stands
+                local ok, color = pcall(function() return deployedObj.PaintedColor end)
+                if ok and color == 12 then
+                    ProcessStand(deployedObj, objClass, color)
+                end
             end
         end)
+    end)
 
-        -- Hook OnRep_PaintedColor on parent class
-        -- Handles: live paint/unpaint changes
+    if not ok1 then
+        Log("Failed to register ReceiveBeginPlay hook: " .. tostring(err1), "error")
+    else
+        Log("ReceiveBeginPlay hook registered", "debug")
+    end
+
+    -- Hook OnRep_PaintedColor on parent class
+    -- Handles: live paint/unpaint changes
+    local ok2, err2 = pcall(function()
         RegisterHook("/Game/Blueprints/DeployedObjects/AbioticDeployed_ParentBP.AbioticDeployed_ParentBP_C:OnRep_PaintedColor", function(Context)
             local deployedObj = Context:get()
             if not deployedObj or not deployedObj:IsValid() then return end
 
             local objClass = deployedObj:GetClass():GetFName():ToString()
             if objClass == "Deployed_ItemStand_ParentBP_C" or objClass == "Deployed_ItemStand_WallMount_C" then
-                ProcessStand(deployedObj, objClass)
+                local ok, color = pcall(function() return deployedObj.PaintedColor end)
+                if ok then
+                    ProcessStand(deployedObj, objClass, color)
+                end
             end
         end)
     end)
 
-    if not ok then
-        Log("Failed to register hooks: " .. tostring(err), "error")
+    if not ok2 then
+        Log("Failed to register OnRep hook: " .. tostring(err2), "error")
     else
-        Log("Hooks registered successfully", "debug")
+        Log("OnRep hook registered", "debug")
     end
 end)
 
