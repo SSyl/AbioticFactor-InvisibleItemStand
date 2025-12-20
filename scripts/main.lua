@@ -148,8 +148,8 @@ ExecuteWithDelay(2500, function()
 
             local objClass = deployedObj:GetClass():GetFName():ToString()
             if objClass == "Deployed_ItemStand_ParentBP_C" or objClass == "Deployed_ItemStand_WallMount_C" then
-                -- 50ms delay to allow components to fully replicate during level streaming
-                ExecuteWithDelay(50, function()
+                -- 250ms delay to allow components to fully replicate during level streaming
+                ExecuteWithDelay(250, function()
                     ExecuteInGameThread(function()
                         if not deployedObj or not deployedObj:IsValid() then return end
 
