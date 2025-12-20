@@ -140,7 +140,7 @@ ExecuteWithDelay(2500, function()
     end
 
     -- Hook OnRep_PaintedColor on parent class
-    -- Handles: live paint/unpaint changes
+    -- Handles: live paint/unpaint changes and world load painted stands
     local ok2, err2 = pcall(function()
         RegisterHook("/Game/Blueprints/DeployedObjects/AbioticDeployed_ParentBP.AbioticDeployed_ParentBP_C:OnRep_PaintedColor", function(Context)
             local deployedObj = Context:get()
@@ -148,10 +148,17 @@ ExecuteWithDelay(2500, function()
 
             local objClass = deployedObj:GetClass():GetFName():ToString()
             if objClass == "Deployed_ItemStand_ParentBP_C" or objClass == "Deployed_ItemStand_WallMount_C" then
-                local ok, color = pcall(function() return deployedObj.PaintedColor end)
-                if ok then
-                    ProcessStand(deployedObj, objClass, color)
-                end
+                -- 50ms delay to allow components to fully replicate during level streaming
+                ExecuteWithDelay(50, function()
+                    ExecuteInGameThread(function()
+                        if not deployedObj or not deployedObj:IsValid() then return end
+
+                        local ok, color = pcall(function() return deployedObj.PaintedColor end)
+                        if ok then
+                            ProcessStand(deployedObj, objClass, color)
+                        end
+                    end)
+                end)
             end
         end)
     end)
