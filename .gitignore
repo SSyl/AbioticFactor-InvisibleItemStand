@@ -4,3 +4,6 @@
 # Markdown files except README
 *.md
 !README.md
+
+# Packaged mod files
+*.zip
