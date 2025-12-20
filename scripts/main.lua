@@ -99,10 +99,15 @@ local function ProcessStand(itemStand, className, paintedColor)
         furnitureMesh:SetHiddenInGame(shouldHide, false)
     end)
 
-    pcall(function()
-        local loc = itemRoot.RelativeLocation
-        itemRoot:K2_SetRelativeLocation({X = loc.X, Y = loc.Y, Z = desiredZ}, false, {}, false)
+    local locOk, loc = pcall(function()
+        return itemRoot.RelativeLocation
     end)
+
+    if locOk and loc then
+        pcall(function()
+            itemRoot:K2_SetRelativeLocation({X = loc.X, Y = loc.Y, Z = desiredZ}, false, {}, false)
+        end)
+    end
 end
 
 -- Register hooks after Blueprint classes load
