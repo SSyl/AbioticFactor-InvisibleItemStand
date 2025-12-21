@@ -55,7 +55,7 @@ if not TARGET_COLOR_WALLMOUNT then
 end
 
 local function ProcessStand(itemStand, className, paintedColor)
-    if not itemStand or not itemStand:IsValid() then return end
+    if not itemStand:IsValid() then return end
 
     -- Get className if not provided
     className = className or itemStand:GetClass():GetFName():ToString()
@@ -120,7 +120,7 @@ ExecuteWithDelay(2500, function()
     local ok1, err1 = pcall(function()
         RegisterHook("/Game/Blueprints/DeployedObjects/AbioticDeployed_ParentBP.AbioticDeployed_ParentBP_C:ReceiveBeginPlay", function(Context)
             local deployedObj = Context:get()
-            if not deployedObj or not deployedObj:IsValid() then return end
+            if not deployedObj:IsValid() then return end
 
             local objClass = deployedObj:GetClass():GetFName():ToString()
             if objClass == "Deployed_ItemStand_ParentBP_C" or objClass == "Deployed_ItemStand_WallMount_C" then
@@ -144,14 +144,14 @@ ExecuteWithDelay(2500, function()
     local ok2, err2 = pcall(function()
         RegisterHook("/Game/Blueprints/DeployedObjects/AbioticDeployed_ParentBP.AbioticDeployed_ParentBP_C:OnRep_PaintedColor", function(Context)
             local deployedObj = Context:get()
-            if not deployedObj or not deployedObj:IsValid() then return end
+            if not deployedObj:IsValid() then return end
 
             local objClass = deployedObj:GetClass():GetFName():ToString()
             if objClass == "Deployed_ItemStand_ParentBP_C" or objClass == "Deployed_ItemStand_WallMount_C" then
                 -- 250ms delay to allow components to fully replicate during level streaming
                 ExecuteWithDelay(250, function()
                     ExecuteInGameThread(function()
-                        if not deployedObj or not deployedObj:IsValid() then return end
+                        if not deployedObj:IsValid() then return end
 
                         local ok, color = pcall(function() return deployedObj.PaintedColor end)
                         if ok then
