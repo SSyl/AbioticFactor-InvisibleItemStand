@@ -81,8 +81,8 @@ local function ProcessStand(itemStand, className, paintedColor)
     local ok, furnitureMesh = pcall(function() return itemStand.FurnitureMesh end)
     local ok2, itemRoot = pcall(function() return itemStand.ItemRoot end)
 
-    if not (ok and furnitureMesh and furnitureMesh:IsValid()) then return end
-    if not (ok2 and itemRoot and itemRoot:IsValid()) then return end
+    if not (ok and furnitureMesh:IsValid()) then return end
+    if not (ok2 and itemRoot:IsValid()) then return end
 
     -- Determine desired state
     local shouldHide = (paintedColor == targetColor)
