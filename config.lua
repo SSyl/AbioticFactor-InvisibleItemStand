@@ -25,6 +25,17 @@ return {
     -- Default: "brown"
     InvisibleColorWallMount = "brown",
 
+    -- Item Refrigeration (prevents food decay)
+    -- Controls whether items on stands preserves food indefinitely (good for food displays)
+    --
+    -- Options:
+    --   0 or "disabled" - No refrigeration (default game behavior)
+    --   1 or "all"      - Refrigerate ALL item stands regardless of color or visibility
+    --   2 or "invisible" - Only refrigerate invisible item stands (target color + has item)
+    --
+    -- Default: 0 (disabled)
+    RefrigerationMode = 0,
+
     -- Advanced: Enable debug logging (useful for troubleshooting)
     -- Leave this as false unless you're experiencing issues
     -- When enabled, prints detailed information to UE4SS.log
