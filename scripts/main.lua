@@ -258,28 +258,14 @@ local function DeployedBeginPlay(Context)
     local standType = GetStandType(stand)
     if not standType then return end
 
-    local okLoading, isLoading = pcall(function() return stand.IsCurrentlyLoadingFromSave end)
-    local delay = (okLoading and isLoading) and 1000 or 0
+    if REFRIGERATION_ENABLED and isHost then
+        ApplyRefrigeration(stand)
+    end
 
-    ExecuteWithDelay(delay, function()
-        ExecuteInGameThread(function()
-            if not stand:IsValid() then return end
-
-            if REFRIGERATION_ENABLED then
-                if isHost then
-                    Log(string.format("DeployedBeginPlay: Attempting refrigeration for %s", standType), "debug")
-                    ApplyRefrigeration(stand)
-                else
-                    Log("DeployedBeginPlay: Skipping refrigeration (not host)", "debug")
-                end
-            end
-
-            local okColor, color = pcall(function() return stand.PaintedColor end)
-            if okColor and color == COLORS.unpainted then
-                UpdateStandVisibility(stand, standType, color)
-            end
-        end)
-    end)
+    local okColor, color = pcall(function() return stand.PaintedColor end)
+    if okColor and color == COLORS.unpainted then
+        UpdateStandVisibility(stand, standType, color)
+    end
 end
 
 local function OnRepPaintedColor(Context)
@@ -289,24 +275,24 @@ local function OnRepPaintedColor(Context)
     local standType = GetStandType(stand)
     if not standType then return end
 
-    local okLoading, isLoading = pcall(function() return stand.IsCurrentlyLoadingFromSave end)
-    local delay = (okLoading and isLoading) and 1000 or 250
-
-    ExecuteWithDelay(delay, function()
-        ExecuteInGameThread(function()
-            if not stand:IsValid() then return end
-
-            local okColor, color = pcall(function() return stand.PaintedColor end)
-            if okColor then
-                UpdateStandVisibility(stand, standType, color)
-            end
-        end)
-    end)
+    local okColor, color = pcall(function() return stand.PaintedColor end)
+    if okColor then
+        UpdateStandVisibility(stand, standType, color)
+    end
 end
 
 --------------------------------------------------------------------------------
 -- Hook Registration
 --------------------------------------------------------------------------------
+
+-- Clear caches before level loads to prevent dangling pointer crashes
+RegisterInitGameStatePreHook(function()
+    cachedClasses.loaded = false
+    cachedClasses.itemStand = nil
+    cachedClasses.wallMount = nil
+    isHost = false
+    Log("InitGameStatePre: Cleared caches", "debug")
+end)
 
 ExecuteWithDelay(2500, function()
     Log("Registering hooks...", "debug")
@@ -329,7 +315,6 @@ ExecuteWithDelay(2500, function()
         Log("OnRep_PaintedColor hook registered", "debug")
     end
 
-    -- Only register inventory hook if HideOnlyWithItem is enabled (otherwise not needed)
     if HIDE_ONLY_WITH_ITEM then
         local okOnRepInv, errOnRepInv = pcall(function()
             RegisterHook("/Game/Blueprints/Characters/Abiotic_InventoryComponent.Abiotic_InventoryComponent_C:OnRep_CurrentInventory", function(Context)
