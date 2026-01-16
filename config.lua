@@ -25,8 +25,9 @@ return {
     -- Only hide stands when they have an item displayed
     -- When true: Empty target-colored stands remain visible until you place an item
     -- When false: Target-colored stands are always hidden (even when empty)
-    -- Default: true
-    HideOnlyWithItem = true,
+    -- Can cause performance drop with a large number stands in the world
+    -- Default: false
+    HideOnlyWithItem = false,
 
     -- Item Refrigeration (HOST-ONLY - prevents food decay)
     -- Freezes all items on stands to prevent decay. Great for food displays.

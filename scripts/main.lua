@@ -66,7 +66,7 @@ local TARGET_COLORS = {
     wallMount = ParseColorConfig(Config.InvisibleColorWallMount, "brown", "InvisibleColorWallMount")
 }
 
-local HIDE_ONLY_WITH_ITEM = Config.HideOnlyWithItem ~= false
+local HIDE_ONLY_WITH_ITEM = Config.HideOnlyWithItem == true
 local REFRIGERATION_ENABLED = Config.Refrigeration == true
 
 -- Pre-computed stand configs (avoids table creation per call)
@@ -82,8 +82,8 @@ local STAND_CONFIGS = {
 local isHost = false
 
 local cachedClasses = {
-    itemStand = nil,
-    wallMount = nil,
+    itemStand = CreateInvalidObject(),
+    wallMount = CreateInvalidObject(),
     loaded = false
 }
 
@@ -93,12 +93,11 @@ local cachedClasses = {
 
 local function CacheClasses()
     if cachedClasses.loaded then
-        if (cachedClasses.itemStand and not cachedClasses.itemStand:IsValid()) or
-           (cachedClasses.wallMount and not cachedClasses.wallMount:IsValid()) then
+        if not cachedClasses.itemStand:IsValid() or not cachedClasses.wallMount:IsValid() then
             Log("Cached classes invalidated, reloading", "debug")
             cachedClasses.loaded = false
-            cachedClasses.itemStand = nil
-            cachedClasses.wallMount = nil
+            cachedClasses.itemStand = CreateInvalidObject()
+            cachedClasses.wallMount = CreateInvalidObject()
         else
             return true
         end
@@ -144,15 +143,11 @@ end
 
 -- Checks if stand has an item displayed
 local function HasItem(stand)
-    local okInventory, inventory = pcall(function() return stand.ContainerInventory end)
-    if not okInventory or not inventory:IsValid() then return false end
+    local inventory = stand.ContainerInventory
+    if not inventory or not inventory:IsValid() then return false end
 
     local outParams = {}
-    local okEmpty = pcall(function()
-        inventory:IsInventoryEmpty(outParams)
-    end)
-
-    if not okEmpty then return false end
+    inventory:IsInventoryEmpty(outParams)
     return not outParams.Empty
 end
 
@@ -160,20 +155,18 @@ end
 local function SetStandHidden(stand, standType, hidden)
     local config = GetStandConfig(standType)
 
-    local okMesh, mesh = pcall(function() return stand.FurnitureMesh end)
-    if not okMesh or not mesh:IsValid() then return false end
+    local mesh = stand.FurnitureMesh
+    if not mesh or not mesh:IsValid() then return false end
 
-    local okRoot, itemRoot = pcall(function() return stand.ItemRoot end)
-    if not okRoot or not itemRoot:IsValid() then return false end
+    local itemRoot = stand.ItemRoot
+    if not itemRoot or not itemRoot:IsValid() then return false end
 
-    pcall(function() mesh:SetHiddenInGame(hidden, false) end)
+    mesh:SetHiddenInGame(hidden, false)
 
     local targetZ = hidden and ITEM_Z.hidden or config.visibleZ
-    local okLoc, loc = pcall(function() return itemRoot.RelativeLocation end)
-    if okLoc and loc then
-        pcall(function()
-            itemRoot:K2_SetRelativeLocation({X = loc.X, Y = loc.Y, Z = targetZ}, false, {}, false)
-        end)
+    local loc = itemRoot.RelativeLocation
+    if loc then
+        itemRoot:K2_SetRelativeLocation({X = loc.X, Y = loc.Y, Z = targetZ}, false, {}, false)
     end
 
     return true
@@ -181,25 +174,21 @@ end
 
 -- Sets inventory temperature to frozen
 local function ApplyRefrigeration(stand)
-    local okInventory, inventory = pcall(function() return stand.ContainerInventory end)
-    if not okInventory or not inventory:IsValid() then
+    local inventory = stand.ContainerInventory
+    if not inventory or not inventory:IsValid() then
         Log("ApplyRefrigeration: Failed to get inventory", "debug")
         return
     end
 
-    local okTemp, currentTemp = pcall(function() return inventory.InternalTemperature end)
-    if not okTemp then
+    local currentTemp = inventory.InternalTemperature
+    if not currentTemp then
         Log("ApplyRefrigeration: Failed to read temperature", "debug")
         return
     end
 
     if currentTemp ~= TEMPERATURE.veryCold then
-        local okSet = pcall(function() inventory.InternalTemperature = TEMPERATURE.veryCold end)
-        if okSet then
-            Log(string.format("ApplyRefrigeration: Set temp %d -> %d", currentTemp, TEMPERATURE.veryCold), "debug")
-        else
-            Log("ApplyRefrigeration: Failed to set temperature", "debug")
-        end
+        inventory.InternalTemperature = TEMPERATURE.veryCold
+        Log(string.format("ApplyRefrigeration: Set temp %d -> %d", currentTemp, TEMPERATURE.veryCold), "debug")
     else
         Log("ApplyRefrigeration: Already frozen", "debug")
     end
@@ -216,11 +205,10 @@ local function UpdateStandVisibility(stand, standType, paintedColor)
     if config.targetColor == COLORS.disabled then return end
 
     -- Get current hidden state
-    local okMesh, mesh = pcall(function() return stand.FurnitureMesh end)
-    if not okMesh or not mesh:IsValid() then return end
+    local mesh = stand.FurnitureMesh
+    if not mesh or not mesh:IsValid() then return end
 
-    local okHidden, isCurrentlyHidden = pcall(function() return mesh.bHiddenInGame end)
-    if not okHidden then return end
+    local isCurrentlyHidden = mesh.bHiddenInGame
 
     -- Determine desired state
     local isTargetColor = paintedColor == config.targetColor
@@ -245,9 +233,9 @@ local function OnSurvivalGameStateBeginPlay(Context)
     local gameState = Context:get()
     if not gameState:IsValid() then return end
 
-    local okRole, localRole = pcall(function() return gameState:GetLocalRole() end)
     -- GetLocalRole: 0=None, 1=SimulatedProxy, 2=AutonomousProxy, 3=Authority
-    isHost = okRole and (localRole == 3) or false
+    local localRole = gameState:GetLocalRole()
+    isHost = localRole == 3
     Log(string.format("SurvivalGameState:ReceiveBeginPlay - GetLocalRole()=%s, isHost=%s", tostring(localRole), tostring(isHost)), "debug")
 end
 
@@ -262,8 +250,8 @@ local function DeployedBeginPlay(Context)
         ApplyRefrigeration(stand)
     end
 
-    local okColor, color = pcall(function() return stand.PaintedColor end)
-    if okColor and color == COLORS.unpainted then
+    local color = stand.PaintedColor
+    if color == COLORS.unpainted then
         UpdateStandVisibility(stand, standType, color)
     end
 end
@@ -275,27 +263,26 @@ local function OnRepPaintedColor(Context)
     local standType = GetStandType(stand)
     if not standType then return end
 
-    local okColor, color = pcall(function() return stand.PaintedColor end)
-    if okColor then
-        UpdateStandVisibility(stand, standType, color)
-    end
+    local color = stand.PaintedColor
+    UpdateStandVisibility(stand, standType, color)
 end
 
 --------------------------------------------------------------------------------
 -- Hook Registration
 --------------------------------------------------------------------------------
 
--- Clear caches before level loads to prevent dangling pointer crashes
-RegisterInitGameStatePreHook(function()
-    cachedClasses.loaded = false
-    cachedClasses.itemStand = nil
-    cachedClasses.wallMount = nil
-    isHost = false
-    Log("InitGameStatePre: Cleared caches", "debug")
-end)
-
 ExecuteWithDelay(2500, function()
     Log("Registering hooks...", "debug")
+
+    local okGameState, errGameState = pcall(function()
+        RegisterHook("/Game/Blueprints/Meta/Abiotic_Survival_GameState.Abiotic_Survival_GameState_C:ReceiveBeginPlay",
+        OnSurvivalGameStateBeginPlay)
+    end)
+    if not okGameState then
+        Log("Failed to register SurvivalGameState hook: " .. tostring(errGameState), "error")
+    else
+        Log("SurvivalGameState hook registered", "debug")
+    end
 
     local okBeginPlay, errBeginPlay = pcall(function()
         RegisterHook("/Game/Blueprints/DeployedObjects/AbioticDeployed_ParentBP.AbioticDeployed_ParentBP_C:ReceiveBeginPlay", DeployedBeginPlay)
@@ -321,17 +308,15 @@ ExecuteWithDelay(2500, function()
                 local inventory = Context:get()
                 if not inventory:IsValid() then return end
 
-                local okOwner, owner = pcall(function() return inventory:GetOwner() end)
-                if not okOwner or not owner:IsValid() then return end
+                local owner = inventory:GetOwner()
+                if not owner or not owner:IsValid() then return end
 
                 local standType = GetStandType(owner)
                 if not standType then return end
 
-                local okColor, color = pcall(function() return owner.PaintedColor end)
-                if okColor then
-                    Log(string.format("OnRep_CurrentInventory: %s color=%d", standType, color), "debug")
-                    UpdateStandVisibility(owner, standType, color)
-                end
+                local color = owner.PaintedColor
+                Log(string.format("OnRep_CurrentInventory: %s color=%d", standType, color), "debug")
+                UpdateStandVisibility(owner, standType, color)
             end)
         end)
         if not okOnRepInv then
@@ -341,15 +326,6 @@ ExecuteWithDelay(2500, function()
         end
     else
         Log("OnRep_CurrentInventory hook skipped (HideOnlyWithItem=false)", "debug")
-    end
-
-    local okGameState, errGameState = pcall(function()
-        RegisterHook("/Game/Blueprints/Meta/Abiotic_Survival_GameState.Abiotic_Survival_GameState_C:ReceiveBeginPlay", OnSurvivalGameStateBeginPlay)
-    end)
-    if not okGameState then
-        Log("Failed to register SurvivalGameState hook: " .. tostring(errGameState), "error")
-    else
-        Log("SurvivalGameState hook registered", "debug")
     end
 
     Log("All hooks registered", "debug")
