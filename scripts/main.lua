@@ -79,8 +79,6 @@ local STAND_CONFIGS = {
 -- State
 --------------------------------------------------------------------------------
 
-local isHost = false
-
 local cachedClasses = {
     itemStand = CreateInvalidObject(),
     wallMount = CreateInvalidObject(),
@@ -139,6 +137,19 @@ end
 -- Returns pre-computed config for stand type
 local function GetStandConfig(standType)
     return STAND_CONFIGS[standType]
+end
+
+-- Checks if local player is host (authority), with caching
+-- GetLocalRole: 0=None, 1=SimulatedProxy, 2=AutonomousProxy, 3=Authority
+local cachedIsHost = nil
+local function IsHost()
+    if cachedIsHost == nil then
+        local gameState = FindFirstOf("Abiotic_Survival_GameState_C")
+        if not gameState:IsValid() then return false end
+        cachedIsHost = gameState:GetLocalRole() == 3
+        Log(string.format("IsHost: Cached as %s", tostring(cachedIsHost)), "debug")
+    end
+    return cachedIsHost
 end
 
 -- Checks if stand has an item displayed
@@ -229,14 +240,15 @@ end
 -- Hook Callbacks
 --------------------------------------------------------------------------------
 
-local function OnSurvivalGameStateBeginPlay(Context)
-    local gameState = Context:get()
-    if not gameState:IsValid() then return end
+local function OnPlayerCharacterBeginPlay(Context)
+    local player = Context:get()
+    if not player:IsValid() then return end
 
-    -- GetLocalRole: 0=None, 1=SimulatedProxy, 2=AutonomousProxy, 3=Authority
-    local localRole = gameState:GetLocalRole()
-    isHost = localRole == 3
-    Log(string.format("SurvivalGameState:ReceiveBeginPlay - GetLocalRole()=%s, isHost=%s", tostring(localRole), tostring(isHost)), "debug")
+    -- Detect main menu to reset host cache (session boundary)
+    if player:GetFullName():find("/Game/Maps/MainMenu.MainMenu:PersistentLevel.", 1, true) then
+        Log("MainMenu detected, resetting isHost cache", "debug")
+        cachedIsHost = nil
+    end
 end
 
 local function DeployedBeginPlay(Context)
@@ -246,7 +258,7 @@ local function DeployedBeginPlay(Context)
     local standType = GetStandType(stand)
     if not standType then return end
 
-    if REFRIGERATION_ENABLED and isHost then
+    if REFRIGERATION_ENABLED and IsHost() then
         ApplyRefrigeration(stand)
     end
 
@@ -274,14 +286,14 @@ end
 ExecuteWithDelay(2500, function()
     Log("Registering hooks...", "debug")
 
-    local okGameState, errGameState = pcall(function()
-        RegisterHook("/Game/Blueprints/Meta/Abiotic_Survival_GameState.Abiotic_Survival_GameState_C:ReceiveBeginPlay",
-        OnSurvivalGameStateBeginPlay)
+    local okPlayerChar, errPlayerChar = pcall(function()
+        RegisterHook("/Game/Blueprints/Characters/Abiotic_PlayerCharacter.Abiotic_PlayerCharacter_C:ReceiveBeginPlay",
+        OnPlayerCharacterBeginPlay)
     end)
-    if not okGameState then
-        Log("Failed to register SurvivalGameState hook: " .. tostring(errGameState), "error")
+    if not okPlayerChar then
+        Log("Failed to register PlayerCharacter hook: " .. tostring(errPlayerChar), "error")
     else
-        Log("SurvivalGameState hook registered", "debug")
+        Log("PlayerCharacter hook registered", "debug")
     end
 
     local okBeginPlay, errBeginPlay = pcall(function()
