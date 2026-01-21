@@ -22,19 +22,19 @@ return {
     -- Default: "brown"
     InvisibleColorWallMount = "brown",
 
-    -- Only hide stands when they have an item displayed
+    -- Keep empty stands visible until an item is placed
     -- When true: Empty target-colored stands remain visible until you place an item
     -- When false: Target-colored stands are always hidden (even when empty)
-    -- Can cause performance drop with a large number stands in the world
+    -- Note: Can cause performance drop with a large number of stands in the world
     -- Default: false
-    HideOnlyWithItem = false,
+    AlwaysShowEmptyItemStands = false,
 
-    -- Item Refrigeration (HOST-ONLY - prevents food decay)
-    -- Freezes all items on stands to prevent decay. Great for food displays.
-    -- Note: Only works when you're hosting. Clients won't see the frozen icon,
-    --       but the decay prevention is still active.
+    -- Disable decay for items on stands (HOST-ONLY)
+    -- Protects all items on stands from decay. Great for food displays.
+    -- Note: Only the host's setting matters. Clients benefit from it when the
+    --       host has it enabled, but changing this setting as a client has no effect.
     -- Default: false
-    Refrigeration = false,
+    DisableDecayInItemStands = false,
 
     -- Advanced: Enable debug logging (useful for troubleshooting)
     -- Leave this as false unless you're experiencing issues

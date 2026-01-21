@@ -67,8 +67,8 @@ local TARGET_COLORS = {
     wallMount = ParseColorConfig(Config.InvisibleColorWallMount, "brown", "InvisibleColorWallMount")
 }
 
-local HIDE_ONLY_WITH_ITEM = Config.HideOnlyWithItem == true
-local REFRIGERATION_ENABLED = Config.Refrigeration == true
+local ALWAYS_SHOW_EMPTY = Config.AlwaysShowEmptyItemStands == true
+local DISABLE_DECAY = Config.DisableDecayInItemStands == true
 
 -- Pre-computed stand configs (avoids table creation per call)
 local STAND_CONFIGS = {
@@ -184,25 +184,25 @@ local function SetStandHidden(stand, standType, hidden)
     return true
 end
 
--- Sets inventory temperature to frozen
-local function ApplyRefrigeration(stand)
+-- Protects items from decay
+local function ApplyDecayProtection(stand)
     local inventory = stand.ContainerInventory
     if not inventory or not inventory:IsValid() then
-        Log("ApplyRefrigeration: Failed to get inventory", "debug")
+        Log("ApplyDecayProtection: Failed to get inventory", "debug")
         return
     end
 
     local currentTemp = inventory.InternalTemperature
     if not currentTemp then
-        Log("ApplyRefrigeration: Failed to read temperature", "debug")
+        Log("ApplyDecayProtection: Failed to read temperature", "debug")
         return
     end
 
     if currentTemp ~= TEMPERATURE.veryCold then
         inventory.InternalTemperature = TEMPERATURE.veryCold
-        Log(string.format("ApplyRefrigeration: Set temp %d -> %d", currentTemp, TEMPERATURE.veryCold), "debug")
+        Log(string.format("ApplyDecayProtection: Set temp %d -> %d", currentTemp, TEMPERATURE.veryCold), "debug")
     else
-        Log("ApplyRefrigeration: Already frozen", "debug")
+        Log("ApplyDecayProtection: Decay protection already active", "debug")
     end
 end
 
@@ -224,8 +224,8 @@ local function UpdateStandVisibility(stand, standType, paintedColor)
 
     -- Determine desired state
     local isTargetColor = paintedColor == config.targetColor
-    local hasItem = HIDE_ONLY_WITH_ITEM and isTargetColor and HasItem(stand)
-    local shouldHide = isTargetColor and (not HIDE_ONLY_WITH_ITEM or hasItem)
+    local hasItem = ALWAYS_SHOW_EMPTY and isTargetColor and HasItem(stand)
+    local shouldHide = isTargetColor and (not ALWAYS_SHOW_EMPTY or hasItem)
 
     -- Only act if state needs to change
     if shouldHide and not isCurrentlyHidden then
@@ -259,8 +259,8 @@ local function DeployedBeginPlay(Context)
     local standType = GetStandType(stand)
     if not standType then return end
 
-    if REFRIGERATION_ENABLED and IsHost() then
-        ApplyRefrigeration(stand)
+    if DISABLE_DECAY and IsHost() then
+        ApplyDecayProtection(stand)
     end
 
     local color = stand.PaintedColor
@@ -284,64 +284,102 @@ end
 -- Hook Registration
 --------------------------------------------------------------------------------
 
-ExecuteWithDelay(2500, function()
-    Log("Registering hooks...", "debug")
+local HOOK_PATHS = {
+    playerChar = "/Game/Blueprints/Characters/Abiotic_PlayerCharacter.Abiotic_PlayerCharacter_C:ReceiveBeginPlay",
+    beginPlay = "/Game/Blueprints/DeployedObjects/AbioticDeployed_ParentBP.AbioticDeployed_ParentBP_C:ReceiveBeginPlay",
+    onRepColor = "/Game/Blueprints/DeployedObjects/AbioticDeployed_ParentBP.AbioticDeployed_ParentBP_C:OnRep_PaintedColor",
+    onRepInventory = "/Game/Blueprints/Characters/Abiotic_InventoryComponent.Abiotic_InventoryComponent_C:OnRep_CurrentInventory",
+}
 
-    local okPlayerChar, errPlayerChar = pcall(function()
-        RegisterHook("/Game/Blueprints/Characters/Abiotic_PlayerCharacter.Abiotic_PlayerCharacter_C:ReceiveBeginPlay",
-        OnPlayerCharacterBeginPlay)
-    end)
-    if not okPlayerChar then
-        Log("Failed to register PlayerCharacter hook: " .. tostring(errPlayerChar), "error")
-    else
-        Log("PlayerCharacter hook registered", "debug")
-    end
+local hooksNeeded = {
+    playerChar = DISABLE_DECAY,
+    beginPlay = true,
+    onRepColor = true,
+    onRepInventory = ALWAYS_SHOW_EMPTY,
+}
 
-    local okBeginPlay, errBeginPlay = pcall(function()
-        RegisterHook("/Game/Blueprints/DeployedObjects/AbioticDeployed_ParentBP.AbioticDeployed_ParentBP_C:ReceiveBeginPlay", DeployedBeginPlay)
-    end)
-    if not okBeginPlay then
-        Log("Failed to register ReceiveBeginPlay hook: " .. tostring(errBeginPlay), "error")
-    else
-        Log("ReceiveBeginPlay hook registered", "debug")
-    end
+local hooksRegistered = {
+    playerChar = false,
+    beginPlay = false,
+    onRepColor = false,
+    onRepInventory = false,
+}
 
-    local okOnRep, errOnRep = pcall(function()
-        RegisterHook("/Game/Blueprints/DeployedObjects/AbioticDeployed_ParentBP.AbioticDeployed_ParentBP_C:OnRep_PaintedColor", OnRepPaintedColor)
-    end)
-    if not okOnRep then
-        Log("Failed to register OnRep_PaintedColor hook: " .. tostring(errOnRep), "error")
-    else
-        Log("OnRep_PaintedColor hook registered", "debug")
-    end
+local function OnRepCurrentInventory(Context)
+    local inventory = Context:get()
+    if not inventory:IsValid() then return end
 
-    if HIDE_ONLY_WITH_ITEM then
-        local okOnRepInv, errOnRepInv = pcall(function()
-            RegisterHook("/Game/Blueprints/Characters/Abiotic_InventoryComponent.Abiotic_InventoryComponent_C:OnRep_CurrentInventory", function(Context)
-                local inventory = Context:get()
-                if not inventory:IsValid() then return end
+    local owner = inventory:GetOwner()
+    if not owner or not owner:IsValid() then return end
 
-                local owner = inventory:GetOwner()
-                if not owner or not owner:IsValid() then return end
+    local standType = GetStandType(owner)
+    if not standType then return end
 
-                local standType = GetStandType(owner)
-                if not standType then return end
+    local color = owner.PaintedColor
+    Log(string.format("OnRep_CurrentInventory: %s color=%d", standType, color), "debug")
+    UpdateStandVisibility(owner, standType, color)
+end
 
-                local color = owner.PaintedColor
-                Log(string.format("OnRep_CurrentInventory: %s color=%d", standType, color), "debug")
-                UpdateStandVisibility(owner, standType, color)
-            end)
-        end)
-        if not okOnRepInv then
-            Log("Failed to register OnRep_CurrentInventory hook: " .. tostring(errOnRepInv), "error")
-        else
-            Log("OnRep_CurrentInventory hook registered", "debug")
+local HOOK_CALLBACKS = {
+    playerChar = OnPlayerCharacterBeginPlay,
+    beginPlay = DeployedBeginPlay,
+    onRepColor = OnRepPaintedColor,
+    onRepInventory = OnRepCurrentInventory,
+}
+
+local function AllHooksRegistered()
+    for key, needed in pairs(hooksNeeded) do
+        if needed and not hooksRegistered[key] then
+            return false
         end
-    else
-        Log("OnRep_CurrentInventory hook skipped (HideOnlyWithItem=false)", "debug")
+    end
+    return true
+end
+
+local function TryRegisterHooks()
+    for key, needed in pairs(hooksNeeded) do
+        if needed and not hooksRegistered[key] then
+            local ok = pcall(RegisterHook, HOOK_PATHS[key], HOOK_CALLBACKS[key])
+            if ok then
+                hooksRegistered[key] = true
+                Log(string.format("Hook registered: %s", key), "debug")
+            end
+        end
+    end
+end
+
+local MAX_HOOK_ATTEMPTS = 20
+
+local function RegisterHooksWithRetry(attempts)
+    attempts = attempts or 0
+
+    if AllHooksRegistered() then
+        Log("All hooks registered", "debug")
+        return
     end
 
-    Log("All hooks registered", "debug")
+    if attempts >= MAX_HOOK_ATTEMPTS then
+        for key, needed in pairs(hooksNeeded) do
+            if needed and not hooksRegistered[key] then
+                Log(string.format("Failed to register hook after %d attempts: %s", MAX_HOOK_ATTEMPTS, key), "warning")
+            end
+        end
+        return
+    end
+
+    TryRegisterHooks()
+
+    if not AllHooksRegistered() then
+        ExecuteWithDelay(500, function()
+            RegisterHooksWithRetry(attempts + 1)
+        end)
+    else
+        Log("All hooks registered", "debug")
+    end
+end
+
+ExecuteWithDelay(500, function()
+    RegisterHooksWithRetry()
 end)
 
 Log("Mod loaded", "debug")
