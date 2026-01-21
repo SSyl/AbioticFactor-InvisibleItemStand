@@ -38,10 +38,10 @@ local ITEM_Z = {
     wallMount = 5.5
 }
 
-local CLASS_PATHS = {
-    itemStand = "/Game/Blueprints/DeployedObjects/Furniture/Deployed_ItemStand_ParentBP.Deployed_ItemStand_ParentBP_C",
-    wallMount = "/Game/Blueprints/DeployedObjects/Furniture/Deployed_ItemStand_WallMount.Deployed_ItemStand_WallMount_C",
-    foodWarmer = "/Game/Blueprints/DeployedObjects/Furniture/Deployed_FoodWarmer.Deployed_FoodWarmer_C"
+local CLASS_PATTERNS = {
+    itemStand = "Deployed_ItemStand_ParentBP_C",
+    wallMount = "Deployed_ItemStand_WallMount_C",
+    foodWarmer = "Deployed_FoodWarmer_C"
 }
 
 --------------------------------------------------------------------------------
@@ -81,49 +81,34 @@ local STAND_CONFIGS = {
 --------------------------------------------------------------------------------
 
 local cachedClasses = {
-    itemStand = CreateInvalidObject(),
-    wallMount = CreateInvalidObject(),
-    foodWarmer = CreateInvalidObject(),
-    loaded = false
+    itemStand = nil,
+    wallMount = nil,
+    foodWarmer = nil
 }
 
 --------------------------------------------------------------------------------
--- Class Caching (avoids slow StaticFindObject on every IsA call)
+-- Class Matching (cached IsA -> string fallback -> cache from instance)
 --------------------------------------------------------------------------------
 
-local function CacheClasses()
-    if cachedClasses.loaded then
-        if not cachedClasses.itemStand:IsValid() or not cachedClasses.wallMount:IsValid() or not cachedClasses.foodWarmer:IsValid() then
-            Log("Cached classes invalidated, reloading", "debug")
-            cachedClasses.loaded = false
-            cachedClasses.itemStand = CreateInvalidObject()
-            cachedClasses.wallMount = CreateInvalidObject()
-            cachedClasses.foodWarmer = CreateInvalidObject()
-        else
-            return true
-        end
+-- Helper: Check class match with caching and fallback
+-- Returns true if obj matches the class at classKey
+local function CheckClass(obj, classKey, getClass)
+    local cached = cachedClasses[classKey]
+
+    -- Tier 1: Try cached class (IsValid first, then IsA)
+    if cached and cached:IsValid() then
+        return obj:IsA(cached)
     end
 
-    local _, _, itemStandLoaded = LoadAsset(CLASS_PATHS.itemStand)
-    local _, _, wallMountLoaded = LoadAsset(CLASS_PATHS.wallMount)
-    local _, _, foodWarmerLoaded = LoadAsset(CLASS_PATHS.foodWarmer)
-
-    if not (itemStandLoaded and wallMountLoaded and foodWarmerLoaded) then
-        Log("Failed to load ItemStand assets", "debug")
+    -- Tier 2: Fall back to class name matching
+    -- (only hit during early loading when classes may be garbage collected)
+    local objClass = getClass()
+    if objClass:GetFName():ToString() ~= CLASS_PATTERNS[classKey] then
         return false
     end
 
-    cachedClasses.itemStand = StaticFindObject(CLASS_PATHS.itemStand)
-    cachedClasses.wallMount = StaticFindObject(CLASS_PATHS.wallMount)
-    cachedClasses.foodWarmer = StaticFindObject(CLASS_PATHS.foodWarmer)
-
-    if not cachedClasses.itemStand:IsValid() or not cachedClasses.wallMount:IsValid() or not cachedClasses.foodWarmer:IsValid() then
-        Log("Failed to cache class references", "debug")
-        return false
-    end
-
-    cachedClasses.loaded = true
-    Log("Class references cached", "debug")
+    -- Tier 3: Class name matched - cache the UClass directly from the object
+    cachedClasses[classKey] = objClass
     return true
 end
 
@@ -133,10 +118,20 @@ end
 
 -- Returns "itemStand", "wallMount", or nil
 local function GetStandType(obj)
-    if not CacheClasses() then return nil end
-    if obj:IsA(cachedClasses.foodWarmer) then return nil end
-    if obj:IsA(cachedClasses.wallMount) then return "wallMount" end
-    if obj:IsA(cachedClasses.itemStand) then return "itemStand" end
+    -- Lazy-load class only if needed for fallback
+    local objClass = nil
+    local function getClass()
+        if not objClass then
+            objClass = obj:GetClass()
+        end
+        return objClass
+    end
+
+    -- Check order: foodWarmer (exclude), wallMount (specific), itemStand (parent)
+    if CheckClass(obj, "foodWarmer", getClass) then return nil end
+    if CheckClass(obj, "wallMount", getClass) then return "wallMount" end
+    if CheckClass(obj, "itemStand", getClass) then return "itemStand" end
+
     return nil
 end
 
