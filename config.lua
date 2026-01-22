@@ -22,10 +22,10 @@ return {
     -- Default: "brown"
     InvisibleColorWallMount = "brown",
 
-    -- Keep empty stands visible until an item is placed
+    -- Keep empty stands visible until an item is placed (EXPERIMENTAL)
     -- When true: Empty target-colored stands remain visible until you place an item
     -- When false: Target-colored stands are always hidden (even when empty)
-    -- Note: Can cause performance drop with a large number of stands in the world
+    -- Note: Can cause increased load times with a large number of item stands
     -- Default: false
     AlwaysShowEmptyItemStands = false,
 
