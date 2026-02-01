@@ -243,7 +243,7 @@ end
 
 local function OnPlayerCharacterBeginPlay(Context)
     local player = Context:get()
-    if not player:IsValid() then return end
+    if not player or not player:IsValid() then return end
 
     -- Detect main menu to reset host cache (session boundary)
     if player:GetFullName():find("/Game/Maps/MainMenu.MainMenu:PersistentLevel.", 1, true) then
@@ -254,7 +254,7 @@ end
 
 local function DeployedBeginPlay(Context)
     local stand = Context:get()
-    if not stand:IsValid() then return end
+    if not stand or not stand:IsValid() then return end
 
     local standType = GetStandType(stand)
     if not standType then return end
@@ -271,7 +271,7 @@ end
 
 local function OnRepPaintedColor(Context)
     local stand = Context:get()
-    if not stand:IsValid() then return end
+    if not stand or not stand:IsValid() then return end
 
     local standType = GetStandType(stand)
     if not standType then return end
@@ -307,7 +307,7 @@ local hooksRegistered = {
 
 local function OnRepCurrentInventory(Context)
     local inventory = Context:get()
-    if not inventory:IsValid() then return end
+    if not inventory or not inventory:IsValid() then return end
 
     local owner = inventory:GetOwner()
     if not owner or not owner:IsValid() then return end
